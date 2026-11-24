@@ -6,8 +6,37 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../data/database.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  static const _currencies = ['ر.ي', 'ر.س', '\$', 'د.إ', 'ج.م'];
+  String _currency = 'ر.ي';
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrency();
+  }
+
+  Future<void> _loadCurrency() async {
+    final value = await AppDatabase.instance.getCurrency();
+    if (!mounted) return;
+    setState(() {
+      _currency = _currencies.contains(value) ? value : 'ر.ي';
+      _loading = false;
+    });
+  }
+
+  Future<void> _setCurrency(String? value) async {
+    if (value == null) return;
+    await AppDatabase.instance.setCurrency(value);
+    if (mounted) setState(() => _currency = value);
+  }
 
   Future<void> _backup(BuildContext context) async {
     try {
@@ -40,6 +69,7 @@ class SettingsScreen extends StatelessWidget {
       final decoded = jsonDecode(content);
       if (decoded is! Map<String, dynamic>) throw const FormatException('تنسيق الملف غير صحيح');
       await AppDatabase.instance.importAll(decoded);
+      await _loadCurrency();
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تمت استعادة البيانات بنجاح')));
     } catch (e) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('فشلت الاستعادة: $e')));
@@ -50,10 +80,25 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) => ListView(
     padding: const EdgeInsets.all(16),
     children: [
+      Card(child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('العملة المستخدمة', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            value: _currency,
+            decoration: const InputDecoration(prefixIcon: Icon(Icons.currency_exchange), labelText: 'اختر العملة'),
+            items: _currencies.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+            onChanged: _loading ? null : _setCurrency,
+          ),
+          const SizedBox(height: 6),
+          const Text('يتم حفظ اختيار العملة ضمن النسخة الاحتياطية.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+        ]),
+      )),
       Card(child: ListTile(
         leading: const CircleAvatar(child: Icon(Icons.backup_outlined)),
         title: const Text('إنشاء نسخة احتياطية'),
-        subtitle: const Text('حفظ العملاء والديون والمدفوعات في ملف JSON'),
+        subtitle: const Text('حفظ العملاء والديون والمدفوعات والإعدادات في ملف JSON'),
         trailing: const Icon(Icons.chevron_left),
         onTap: () => _backup(context),
       )),
