@@ -34,6 +34,8 @@ class AppDatabase {
           )
         ''');
         await db.execute('CREATE INDEX idx_transactions_customer ON transactions(customer_id)');
+        await db.execute('CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+        await db.insert('settings', {'key': 'currency', 'value': 'ر.ي'});
       },
     );
     await _db!.execute('PRAGMA foreign_keys = ON');
@@ -85,6 +87,18 @@ class AppDatabase {
     };
   }
 
+  Future<String> getCurrency() async {
+    final db = await database;
+    final rows = await db.query('settings', where: 'key=?', whereArgs: ['currency'], limit: 1);
+    return rows.isEmpty ? 'ر.ي' : rows.first['value'] as String;
+  }
+
+  Future<void> setCurrency(String value) async {
+    final db = await database;
+    await db.insert('settings', {'key': 'currency', 'value': value},
+        conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
   Future<Map<String, Object?>> exportAll() async {
     final db = await database;
     return {
@@ -93,6 +107,7 @@ class AppDatabase {
       'exported_at': DateTime.now().toIso8601String(),
       'customers': await db.query('customers', orderBy: 'id'),
       'transactions': await db.query('transactions', orderBy: 'id'),
+      'settings': await db.query('settings'),
     };
   }
 
@@ -105,8 +120,17 @@ class AppDatabase {
     await db.transaction((txn) async {
       await txn.delete('transactions');
       await txn.delete('customers');
+      if (data['settings'] is List) await txn.delete('settings');
       for (final item in data['customers'] as List) {
         await txn.insert('customers', Map<String, Object?>.from(item as Map));
+      }
+      if (data['settings'] is List) {
+        for (final item in data['settings'] as List) {
+          await txn.insert('settings', Map<String, Object?>.from(item as Map));
+        }
+      } else {
+        await txn.insert('settings', {'key': 'currency', 'value': 'ر.ي'},
+            conflictAlgorithm: ConflictAlgorithm.replace);
       }
       for (final item in data['transactions'] as List) {
         await txn.insert('transactions', Map<String, Object?>.from(item as Map));
