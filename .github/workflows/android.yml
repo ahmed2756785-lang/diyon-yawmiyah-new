@@ -1,0 +1,95 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate Android platform
+        run: flutter create --platforms=android --project-name diyon_yawmiyah --org com.ahmed.diyonyawmiyah .
+      - name: Restore application sources
+        run: |
+          git checkout HEAD -- lib pubspec.yaml analysis_options.yaml test
+      - name: Set Android minimum SDK and app label
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("android/app/build.gradle.kts")
+          s = p.read_text()
+          s = s.replace("minSdk = flutter.minSdkVersion", "minSdk = 23")
+          s = s.replace('label = "diyon_yawmiyah"', 'label = "ديون يومية"')
+          p.write_text(s)
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          m = manifest.read_text()
+          m = m.replace('<application', '<uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <application')
+          manifest.write_text(m)
+          PY
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Analyze and test
+        run: |
+          flutter analyze
+          flutter test
+      - name: Build release APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ] && [ -n "$STORE_PASSWORD" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > android/app/release-key.jks
+            cat > android/key.properties <<EOF
+          storePassword=$STORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=release-key.jks
+          EOF
+            python3 - <<'PY'
+          from pathlib import Path
+          p = Path("android/app/build.gradle.kts")
+          s = p.read_text()
+          block = '''
+          val keystoreProperties = java.util.Properties()
+          val keystoreFile = rootProject.file("key.properties")
+          if (keystoreFile.exists()) keystoreProperties.load(keystoreFile.inputStream())
+          android {
+              signingConfigs {
+                  create("release") {
+                      keyAlias = keystoreProperties["keyAlias"] as String
+                      keyPassword = keystoreProperties["keyPassword"] as String
+                      storeFile = file(keystoreProperties["storeFile"] as String)
+                      storePassword = keystoreProperties["storePassword"] as String
+                  }
+              }
+              buildTypes {
+                  getByName("release") { signingConfig = signingConfigs.getByName("release") }
+              }
+          }
+          '''
+          p.write_text(s + "\n" + block)
+          PY
+            flutter build apk --release
+            cp build/app/outputs/flutter-apk/app-release.apk Diyon-Yawmiyah.apk
+          else
+            echo "Signing secrets are not configured; building a debug APK."
+            flutter build apk --debug
+            cp build/app/outputs/flutter-apk/app-debug.apk Diyon-Yawmiyah.apk
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Diyon-Yawmiyah
+          path: Diyon-Yawmiyah.apk
+          if-no-files-found: error
