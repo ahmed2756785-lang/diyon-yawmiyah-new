@@ -35,7 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
         index: _tab,
         children: [
           Dashboard(key: ValueKey(_refresh), onChanged: _reload),
-          const CustomerScreen(onChanged: _reload),
+          CustomerScreen(onChanged: _reload),
           const SettingsScreen(),
         ],
       ),
