@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'data/database.dart';
 import 'screens/home_screen.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppDatabase.instance.getCurrency();
   runApp(const DiyonApp());
 }
 
