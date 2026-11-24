@@ -1,7 +1,7 @@
-String appCurrency = 'ر.ي';
-
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
+
+String appCurrency = 'ر.ي';
 
 class AppDatabase {
   AppDatabase._();
