@@ -6,14 +6,38 @@ String appCurrency = 'ر.ي';
 class AppDatabase {
   AppDatabase._();
   static final AppDatabase instance = AppDatabase._();
+
   Database? _db;
+  Future<Database>? _opening;
 
   Future<Database> get database async {
     if (_db != null) return _db!;
+    // Share one opening operation so simultaneous screens never open the DB twice.
+    final pending = _opening;
+    if (pending != null) return pending;
+
+    final opening = _openDatabase();
+    _opening = opening;
+    try {
+      _db = await opening;
+      return _db!;
+    } finally {
+      _opening = null;
+    }
+  }
+
+  Future<Database> _openDatabase() async {
     final root = await getDatabasesPath();
-    _db = await openDatabase(
+    return openDatabase(
       p.join(root, 'diyon_yawmiyah.db'),
       version: 1,
+      onConfigure: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
+        await db.execute('PRAGMA journal_mode = WAL');
+        await db.execute('PRAGMA synchronous = NORMAL');
+        await db.execute('PRAGMA busy_timeout = 5000');
+        await db.execute('PRAGMA temp_store = MEMORY');
+      },
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE customers(
@@ -36,12 +60,12 @@ class AppDatabase {
           )
         ''');
         await db.execute('CREATE INDEX idx_transactions_customer ON transactions(customer_id)');
+        await db.execute('CREATE INDEX idx_transactions_customer_type ON transactions(customer_id, type)');
+        await db.execute('CREATE INDEX idx_transactions_date ON transactions(created_at DESC, id DESC)');
         await db.execute('CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)');
         await db.insert('settings', {'key': 'currency', 'value': 'ر.ي'});
       },
     );
-    await _db!.execute('PRAGMA foreign_keys = ON');
-    return _db!;
   }
 
   Future<List<Map<String, Object?>>> customers() async {
@@ -56,22 +80,32 @@ class AppDatabase {
   Future<int> addCustomer(String name, String phone, String note) async {
     final db = await database;
     return db.insert('customers', {
-      'name': name.trim(), 'phone': phone.trim(), 'note': note.trim(),
+      'name': name.trim(),
+      'phone': phone.trim(),
+      'note': note.trim(),
       'created_at': DateTime.now().toIso8601String(),
-    });
+    }, conflictAlgorithm: ConflictAlgorithm.abort);
   }
 
   Future<int> addTransaction(int customerId, String type, double amount, String note) async {
     final db = await database;
     return db.insert('transactions', {
-      'customer_id': customerId, 'type': type, 'amount': amount,
-      'note': note.trim(), 'created_at': DateTime.now().toIso8601String(),
-    });
+      'customer_id': customerId,
+      'type': type,
+      'amount': amount,
+      'note': note.trim(),
+      'created_at': DateTime.now().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.abort);
   }
 
   Future<List<Map<String, Object?>>> ledger(int customerId) async {
     final db = await database;
-    return db.query('transactions', where: 'customer_id=?', whereArgs: [customerId], orderBy: 'created_at DESC, id DESC');
+    return db.query(
+      'transactions',
+      where: 'customer_id=?',
+      whereArgs: [customerId],
+      orderBy: 'created_at DESC, id DESC',
+    );
   }
 
   Future<Map<String, double>> totals() async {
@@ -98,9 +132,12 @@ class AppDatabase {
 
   Future<void> setCurrency(String value) async {
     final db = await database;
+    await db.insert(
+      'settings',
+      {'key': 'currency', 'value': value},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
     appCurrency = value;
-    await db.insert('settings', {'key': 'currency', 'value': value},
-        conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<Map<String, Object?>> exportAll() async {
@@ -133,12 +170,16 @@ class AppDatabase {
           await txn.insert('settings', Map<String, Object?>.from(item as Map));
         }
       } else {
-        await txn.insert('settings', {'key': 'currency', 'value': 'ر.ي'},
-            conflictAlgorithm: ConflictAlgorithm.replace);
+        await txn.insert(
+          'settings',
+          {'key': 'currency', 'value': 'ر.ي'},
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
       }
       for (final item in data['transactions'] as List) {
         await txn.insert('transactions', Map<String, Object?>.from(item as Map));
       }
     });
+    await getCurrency();
   }
 }
