@@ -75,7 +75,7 @@ class _CustomerScreenState extends State<CustomerScreen> {
                     title: Text(c['name'] as String, style: const TextStyle(fontWeight: FontWeight.bold)),
                     subtitle: Text((c['phone'] as String?)?.isEmpty == true ? 'سجل العميل' : (c['phone'] as String? ?? '')),
                     trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
-                      Text(balance.toStringAsFixed(2), style: TextStyle(fontWeight: FontWeight.bold, color: balance > 0 ? Colors.red : Colors.green)),
+                      Text('${balance.toStringAsFixed(2)} ${appCurrency}', style: TextStyle(fontWeight: FontWeight.bold, color: balance > 0 ? Colors.red : Colors.green)),
                       const Text('الرصيد', style: TextStyle(fontSize: 11, color: Colors.grey)),
                     ]),
                     onTap: () async {
