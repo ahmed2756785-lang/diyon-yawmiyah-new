@@ -113,7 +113,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
                   title: Text(isDebt ? 'دين جديد' : 'دفعة مسددة'),
                   subtitle: Text('${date?.toLocal().toString().substring(0, 16) ?? ''}\n${row['note'] ?? ''}'),
                   isThreeLine: true,
-                  trailing: Text('${isDebt ? '+' : '-'}${(row['amount'] as num).toStringAsFixed(2)}',
+                  trailing: Text('${isDebt ? '+' : '-'}${(row['amount'] as num).toStringAsFixed(2)} ${appCurrency}',
                     style: TextStyle(fontWeight: FontWeight.bold, color: isDebt ? Colors.red : Colors.green)),
                 );
               },
@@ -126,6 +126,6 @@ class _LedgerScreenState extends State<LedgerScreen> {
   Widget _summary(String title, double amount, Color color) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Text(title, style: const TextStyle(fontSize: 11, color: Colors.black54)),
     const SizedBox(height: 5),
-    Text(amount.toStringAsFixed(2), style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color)),
+    Text('${amount.toStringAsFixed(2)} ${appCurrency}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color)),
   ]);
 }
