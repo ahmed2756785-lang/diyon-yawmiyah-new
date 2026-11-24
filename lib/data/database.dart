@@ -1,3 +1,5 @@
+String appCurrency = 'ر.ي';
+
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
@@ -90,11 +92,13 @@ class AppDatabase {
   Future<String> getCurrency() async {
     final db = await database;
     final rows = await db.query('settings', where: 'key=?', whereArgs: ['currency'], limit: 1);
-    return rows.isEmpty ? 'ر.ي' : rows.first['value'] as String;
+    appCurrency = rows.isEmpty ? 'ر.ي' : rows.first['value'] as String;
+    return appCurrency;
   }
 
   Future<void> setCurrency(String value) async {
     final db = await database;
+    appCurrency = value;
     await db.insert('settings', {'key': 'currency', 'value': value},
         conflictAlgorithm: ConflictAlgorithm.replace);
   }
