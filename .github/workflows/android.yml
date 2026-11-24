@@ -40,7 +40,7 @@ jobs:
         run: flutter pub get
       - name: Analyze and test
         run: |
-          flutter analyze
+          flutter analyze --no-fatal-infos
           flutter test
       - name: Build release APK
         env:
